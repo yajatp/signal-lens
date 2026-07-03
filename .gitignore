@@ -1,0 +1,26 @@
+# Secrets — never commit
+.env
+*.env
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Data caches (large downloads, not source)
+backend/data/cache/
+
+# Xcode / iOS
+ios/*.xcodeproj
+ios/DerivedData/
+ios/build/
+*.xcuserstate
+xcuserdata/
+
+# macOS
+.DS_Store

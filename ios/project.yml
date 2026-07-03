@@ -1,0 +1,26 @@
+name: SignalLens
+options:
+  bundleIdPrefix: com.yajatparmar
+  deploymentTarget:
+    iOS: "17.0"
+targets:
+  SignalLens:
+    type: application
+    platform: iOS
+    sources: [SignalLens]
+    info:
+      path: SignalLens/Info.plist
+      properties:
+        UILaunchScreen: {}
+        NSLocationWhenInUseUsageDescription: >-
+          Signal Lens uses your location to predict signal strength where you are,
+          log walk-test routes, and anchor Field Test calibration entries.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+    settings:
+      base:
+        SWIFT_VERSION: "5.9"
+        GENERATE_INFOPLIST_FILE: NO
+        CODE_SIGN_STYLE: Automatic
+        TARGETED_DEVICE_FAMILY: "1"
