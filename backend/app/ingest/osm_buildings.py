@@ -22,6 +22,8 @@ from app.models import Building
 log = logging.getLogger(__name__)
 
 OVERPASS_URL = "https://overpass-api.de/api/interpreter"
+# overpass-api.de rejects default client user agents with 406
+HEADERS = {"User-Agent": "SignalLens/0.1 (github.com/yajatp/signal-lens)"}
 METERS_PER_LEVEL = 3.0
 DEFAULT_HEIGHTS = {
     "house": 5.0, "detached": 5.0, "residential": 6.0, "garage": 3.0,
@@ -53,11 +55,11 @@ def parse_height(tags: dict) -> tuple[float, str]:
 
 def fetch_buildings(lat_min: float, lon_min: float, lat_max: float, lon_max: float) -> list[dict]:
     query = f"""
-    [out:json][timeout:120];
+    [out:json][timeout:300][maxsize:536870912];
     way["building"]({lat_min},{lon_min},{lat_max},{lon_max});
     out tags geom;
     """
-    with httpx.Client(timeout=180) as client:
+    with httpx.Client(timeout=360, headers=HEADERS) as client:
         resp = client.post(OVERPASS_URL, data={"data": query})
         resp.raise_for_status()
         return resp.json().get("elements", [])
