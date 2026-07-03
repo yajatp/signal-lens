@@ -41,6 +41,38 @@ def _fetch_epqs(lat: float, lon: float) -> float:
         return 0.0
 
 
+def elevations_m(db: Session, points: list[tuple[float, float]]) -> dict[str, float]:
+    """Bulk lookup keyed by grid key. Cache misses are fetched from EPQS
+    concurrently — the API takes ~5 s per call, so sequential lookups along a
+    path are unusably slow."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    keyed = {_grid_key(lat, lon)[0]: _grid_key(lat, lon)[1:] for lat, lon in points}
+    cached = {
+        tp.grid_key: tp.elevation_m
+        for tp in db.execute(
+            select(TerrainPoint).where(TerrainPoint.grid_key.in_(keyed))
+        ).scalars()
+    }
+    missing = [k for k in keyed if k not in cached]
+    if missing:
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            fetched = list(pool.map(lambda k: _fetch_epqs(*keyed[k]), missing))
+        for key, elev in zip(missing, fetched):
+            glat, glon = keyed[key]
+            db.add(TerrainPoint(grid_key=key, lat=glat, lon=glon, elevation_m=elev))
+            cached[key] = elev
+        try:
+            db.commit()
+        except Exception:
+            db.rollback()
+    return cached
+
+
+def grid_key(lat: float, lon: float) -> str:
+    return _grid_key(lat, lon)[0]
+
+
 def elevation_m(db: Session, lat: float, lon: float) -> float:
     key, glat, glon = _grid_key(lat, lon)
     cached = db.execute(

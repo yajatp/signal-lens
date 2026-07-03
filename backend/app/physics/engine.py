@@ -10,7 +10,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.ingest.terrain import elevation_m
+from app.ingest.terrain import elevations_m, grid_key
 from app.models import Tower
 from app.physics import geo, los, path_loss, terrain
 
@@ -74,19 +74,32 @@ def predict(db: Session, lat: float, lon: float, height_m: float | None = None) 
         settings.reference_distance_m,
     )
 
-    user_ground = elevation_m(db, lat, lon)
-    tower_ground = elevation_m(db, tower.lat, tower.lon)
+    # One bulk (concurrent) elevation fetch for everything this prediction needs:
+    # both endpoints + the terrain profile samples. Buildings use interpolated
+    # ground elevation, not per-building lookups — EPQS is ~5 s per call.
+    path_points = geo.interpolate_path(
+        lat, lon, tower.lat, tower.lon, settings.terrain_sample_count
+    )
+    elevations = elevations_m(db, [(lat, lon), (tower.lat, tower.lon)] + path_points)
+
+    def lookup(la: float, lo: float) -> float:
+        return elevations.get(grid_key(la, lo), 0.0)
+
+    user_ground = lookup(lat, lon)
+    tower_ground = lookup(tower.lat, tower.lon)
     tower_height = settings.default_tower_height_m
 
     los_result = los.find_obstructions(
         db, lat, lon, tower.lat, tower.lon,
         user_ground, tower_ground, user_height, tower_height,
-        ground_elevation_lookup=lambda la, lo: elevation_m(db, la, lo),
     )
-    obstruction_penalty = los_result.count * settings.building_obstruction_penalty_db
+    obstruction_penalty = min(
+        settings.obstruction_penalty_cap_db,
+        los_result.count * settings.building_obstruction_penalty_db,
+    )
 
     profile = terrain.profile_path(
-        lambda la, lo: elevation_m(db, la, lo),
+        lookup,
         lat, lon, tower.lat, tower.lon,
         user_ground, tower_ground, user_height, tower_height,
         sample_count=settings.terrain_sample_count,

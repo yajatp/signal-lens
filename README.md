@@ -65,7 +65,7 @@ Run on the simulator (backend at `127.0.0.1:8000` works out of the box) or a phy
 ## Honest limitations (by design, see spec §9)
 
 - **iOS exposes no raw dBm.** The live readout is a latency/throughput proxy corrected by your Field Test calibrations — a real but imperfect substitute.
-- **Building attenuation is a flat per-building constant** (~13.5 dB); material data doesn't exist publicly. This is exactly what the ML residual layer is built to absorb.
+- **Building attenuation is a flat per-building constant** (~13.5 dB, saturating at a 40 dB total cap — real NLOS loss diffracts over rooftops rather than stacking indefinitely); material data doesn't exist publicly. This is exactly what the ML residual layer is built to absorb.
 - **OSM height tags are sparse** — heights fall back to `building:levels` × 3 m, then per-type defaults, and each building records which source was used.
 - **No public "live signal at any point" API exists** (Mozilla Location Service is dead; OpenCelliD is historical tower positions). Ground truth comes from physically walking the MVP region (Allen/McKinney, TX).
 

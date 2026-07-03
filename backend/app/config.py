@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     path_loss_exponent: float = 2.9     # suburban; ~2 free space, 2.7–3.5 urban
     reference_distance_m: float = 100.0
     building_obstruction_penalty_db: float = 13.5  # flat per-building penalty (spec §6.2)
+    # Real NLOS excess loss saturates (diffraction over rooftops) — without a cap,
+    # a long suburban path stacks 300+ dB and every prediction clamps to -140.
+    obstruction_penalty_cap_db: float = 40.0
     user_height_m: float = 1.5
     default_tower_height_m: float = 30.0
     terrain_sample_count: int = 12      # elevation samples along the LOS path
