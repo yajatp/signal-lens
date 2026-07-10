@@ -83,8 +83,14 @@ def download_mcc_csv(mcc: int) -> Path:
 def parse_csv(path: Path, bbox: dict) -> list[dict]:
     """Parse the gzipped CSV, filtering to a bounding box."""
     cells = []
+    # OpenCelliD bulk CSVs don't have a header row. The format is:
+    # radio, mcc, net, area, cell, unit, lon, lat, range, samples, changeable, created, updated, averageSignal
+    fieldnames = [
+        "radio", "mcc", "net", "area", "cell", "unit", "lon", "lat", 
+        "range", "samples", "changeable", "created", "updated", "averageSignal"
+    ]
     with gzip.open(path, "rt", encoding="utf-8") as f:
-        reader = csv.DictReader(f)
+        reader = csv.DictReader(f, fieldnames=fieldnames)
         for row in reader:
             try:
                 lat = float(row["lat"])
