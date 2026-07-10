@@ -62,7 +62,10 @@ struct PredictionCard: View {
             }
         }
         .padding()
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
+        .liquidGlass(
+            cornerRadius: 24,
+            glowColor: prediction.predictedDbm.map { color(for: $0) } ?? .blue
+        )
     }
 
     private func color(for dbm: Double) -> Color {
@@ -76,10 +79,10 @@ struct PredictionCard: View {
 
     private func quality(for dbm: Double) -> String {
         switch dbm {
-        case (-85)...: "Excellent"
-        case (-100)..<(-85): "Good"
-        case (-115)..<(-100): "Fair"
-        default: "Poor / dead zone"
+        case (-85)...: "Excellent Connection"
+        case (-100)..<(-85): "Good Connection"
+        case (-115)..<(-100): "Fair Connection"
+        default: "Poor / Dead Zone"
         }
     }
 }

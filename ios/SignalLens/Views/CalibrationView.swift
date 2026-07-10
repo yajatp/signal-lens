@@ -15,47 +15,96 @@ struct CalibrationView: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section("How to read your real signal") {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Label("Dial *3001#12345#* and press call", systemImage: "1.circle")
-                        Label("Open LTE (or 5G) → Serving Cell Meas", systemImage: "2.circle")
-                        Label("Read the rsrp value (e.g. -98)", systemImage: "3.circle")
-                        Label("Return here and enter it below", systemImage: "4.circle")
-                    }
-                    .font(.subheadline)
-                }
-
-                Section("Field Test RSRP (dBm)") {
-                    TextField("-98", text: $rsrpText)
-                        .keyboardType(.numbersAndPunctuation)
-                    if let loc = locationManager.location {
-                        Text(String(format: "Will be logged at %.5f, %.5f", loc.coordinate.latitude, loc.coordinate.longitude))
+            ZStack {
+                GlassBackground()
+                
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 20) {
+                        
+                        // How to use Section
+                        GlassSectionHeader(title: "Instructions")
+                        GlassCard(glowColor: .indigo) {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Label("Dial *3001#12345#* and press call", systemImage: "phone.fill.connection")
+                                Label("Open LTE (or 5G) → Serving Cell Meas", systemImage: "list.bullet.rectangle.portrait")
+                                Label("Read the RSRP value (e.g. -98)", systemImage: "eye.fill")
+                                Label("Return here and enter it below", systemImage: "square.and.pencil")
+                            }
+                            .font(.subheadline)
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        
+                        // Input Section
+                        GlassSectionHeader(title: "Field Test RSRP (dBm)")
+                        GlassCard(glowColor: .purple) {
+                            VStack(alignment: .leading, spacing: 14) {
+                                HStack {
+                                    Image(systemName: "hand.tap.fill")
+                                        .foregroundStyle(.purple)
+                                    TextField("-98", text: $rsrpText)
+                                        .keyboardType(.numbersAndPunctuation)
+                                        .font(.title3.bold())
+                                        .foregroundStyle(.white)
+                                }
+                                .padding(12)
+                                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .stroke(.white.opacity(0.15), lineWidth: 1)
+                                )
+                                
+                                if let loc = locationManager.location {
+                                    Text(String(format: "Location: %.5f, %.5f", loc.coordinate.latitude, loc.coordinate.longitude))
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                } else {
+                                    HStack {
+                                        ProgressView().scaleEffect(0.8)
+                                        Text("Waiting for GPS fix…")
+                                            .font(.caption)
+                                            .foregroundStyle(.orange)
+                                    }
+                                }
+                            }
+                        }
+                        
+                        // Action Section
+                        Button(action: submit) {
+                            HStack {
+                                if submitting {
+                                    ProgressView().tint(.white)
+                                } else {
+                                    Text("Submit Calibration Point")
+                                }
+                            }
+                        }
+                        .buttonStyle(GlassButtonStyle(color: .purple))
+                        .disabled(submitting || locationManager.location == nil || parsedRsrp == nil)
+                        
+                        if let msg = resultMessage {
+                            GlassCard(glowColor: resultIsError ? .red : .green) {
+                                Text(msg)
+                                    .font(.subheadline.bold())
+                                    .foregroundStyle(resultIsError ? .red : .green)
+                                    .frame(maxWidth: .infinity, alignment: .center)
+                            }
+                            .transition(.scale.combined(with: .opacity))
+                        }
+                        
+                        Text("Each calibration point corrects the live proxy estimate on this device and is stored server-side as ground truth for the ML residual model.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                    } else {
-                        Text("Waiting for GPS fix…")
-                            .font(.caption)
-                            .foregroundStyle(.orange)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 16)
+                            .padding(.top, 10)
                     }
-                }
-
-                Section {
-                    Button(action: submit) {
-                        if submitting { ProgressView() } else { Text("Submit calibration point") }
-                    }
-                    .disabled(submitting || locationManager.location == nil || parsedRsrp == nil)
-
-                    if let msg = resultMessage {
-                        Text(msg)
-                            .font(.caption)
-                            .foregroundStyle(resultIsError ? .red : .green)
-                    }
-                } footer: {
-                    Text("Each calibration point corrects the live proxy estimate on this device and is stored server-side as ground truth for the ML residual model.")
+                    .padding()
                 }
             }
             .navigationTitle("Calibrate")
+            .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
+            .toolbarColorScheme(.dark, for: .navigationBar)
         }
     }
 
