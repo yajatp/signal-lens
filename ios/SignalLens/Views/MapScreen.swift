@@ -19,6 +19,7 @@ struct MapScreen: View {
     @State private var loading = false
     @State private var errorMessage: String?
     @State private var visibleCenter: CLLocationCoordinate2D?
+    @State private var isTrackingUser = true
 
     var body: some View {
         NavigationStack {
@@ -50,9 +51,27 @@ struct MapScreen: View {
                     }
                     .onMapCameraChange { context in
                         visibleCenter = context.region.center
+                        isTrackingUser = false
                     }
                 }
                 .ignoresSafeArea(edges: .bottom)
+
+                // Locate-me button — Apple Maps style, bottom-right
+                VStack {
+                    Spacer()
+                    HStack {
+                        Spacer()
+                        Button(action: locateMe) {
+                            Image(systemName: isTrackingUser ? "location.fill" : "location")
+                                .font(.title3)
+                                .padding(12)
+                                .background(.thickMaterial, in: Circle())
+                                .shadow(color: .black.opacity(0.15), radius: 4, y: 2)
+                        }
+                        .padding(.trailing, 16)
+                        .padding(.bottom, 8)
+                    }
+                }
 
                 VStack(spacing: 8) {
                     LiveProxyBadge()
@@ -89,6 +108,21 @@ struct MapScreen: View {
             ?? CLLocationCoordinate2D(latitude: 33.1032, longitude: -96.6706)
     }
 
+    private func locateMe() {
+        withAnimation(.easeInOut(duration: 0.5)) {
+            if let loc = locationManager.location {
+                position = .region(MKCoordinateRegion(
+                    center: loc.coordinate,
+                    span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
+                ))
+            } else {
+                position = .userLocation(fallback: .automatic)
+            }
+            isTrackingUser = true
+        }
+        loadTowers()
+    }
+
     private func loadTowers() {
         let center = referenceCoordinate
         Task {
@@ -96,7 +130,7 @@ struct MapScreen: View {
                 towers = try await APIClient.towers(lat: center.latitude, lon: center.longitude)
                 errorMessage = nil
             } catch {
-                errorMessage = "Couldn't load towers — is the backend running?"
+                errorMessage = "Can't reach \(APIClient.baseURL.host ?? "backend") — check Settings tab"
             }
         }
     }
@@ -110,7 +144,7 @@ struct MapScreen: View {
                 prediction = try await APIClient.predict(lat: coord.latitude, lon: coord.longitude)
                 errorMessage = nil
             } catch {
-                errorMessage = "Prediction failed — is the backend running?"
+                errorMessage = "Prediction failed — check backend at \(APIClient.baseURL.host ?? "?")"
                 prediction = nil
             }
         }
