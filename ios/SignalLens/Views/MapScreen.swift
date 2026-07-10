@@ -6,13 +6,7 @@ struct MapScreen: View {
     @EnvironmentObject private var locationManager: LocationManager
     @EnvironmentObject private var proxyMonitor: SignalProxyMonitor
 
-    @State private var position: MapCameraPosition = .userLocation(
-        fallback: .region(MKCoordinateRegion(
-            // Allen, TX — the MVP test region
-            center: CLLocationCoordinate2D(latitude: 33.1032, longitude: -96.6706),
-            span: MKCoordinateSpan(latitudeDelta: 0.08, longitudeDelta: 0.08)
-        ))
-    )
+    @State private var position: MapCameraPosition = .userLocation(fallback: .automatic)
     @State private var towers: [Tower] = []
     @State private var prediction: Prediction?
     @State private var tappedPoint: CLLocationCoordinate2D?
@@ -99,13 +93,17 @@ struct MapScreen: View {
                 }
             }
             .task { loadTowers() }
+            .onChange(of: locationManager.location) { _, newLoc in
+                // If we just got our first location fix and towers are empty, load them
+                if newLoc != nil && towers.isEmpty {
+                    loadTowers()
+                }
+            }
         }
     }
 
-    private var referenceCoordinate: CLLocationCoordinate2D {
-        visibleCenter
-            ?? locationManager.location?.coordinate
-            ?? CLLocationCoordinate2D(latitude: 33.1032, longitude: -96.6706)
+    private var referenceCoordinate: CLLocationCoordinate2D? {
+        visibleCenter ?? locationManager.location?.coordinate
     }
 
     private func locateMe() {
@@ -124,7 +122,7 @@ struct MapScreen: View {
     }
 
     private func loadTowers() {
-        let center = referenceCoordinate
+        guard let center = referenceCoordinate else { return }
         Task {
             do {
                 towers = try await APIClient.towers(lat: center.latitude, lon: center.longitude)
