@@ -19,6 +19,7 @@ backend/data/cache/
 ios/*.xcodeproj
 ios/DerivedData/
 ios/build/
+ios/build-device/
 *.xcuserstate
 xcuserdata/
 
