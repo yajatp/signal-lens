@@ -1,6 +1,6 @@
 import Foundation
 
-struct Prediction: Codable, Identifiable {
+struct Prediction: Codable, Identifiable, Equatable {
     var id: String { "\(lat),\(lon)" }
     let lat: Double
     let lon: Double
@@ -32,7 +32,7 @@ struct Prediction: Codable, Identifiable {
     }
 }
 
-struct Obstruction: Codable, Identifiable {
+struct Obstruction: Codable, Identifiable, Equatable {
     var id: Int { osmId }
     let osmId: Int
     let buildingType: String

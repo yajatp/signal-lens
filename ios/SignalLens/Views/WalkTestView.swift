@@ -8,67 +8,103 @@ struct WalkTestView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 16) {
-                HStack(spacing: 24) {
-                    stat("Samples", "\(recorder.samples.count)")
-                    stat("Proxy", proxyMonitor.proxyScore.map { String(format: "%.0f", $0) } ?? "—")
-                    stat("Est. dBm", proxyMonitor.estimatedDbm.map { "\(Int($0))" } ?? "—")
-                }
-                .padding(.top)
-
-                Button(action: toggle) {
-                    Label(
-                        recorder.isRecording ? "Stop Walk Test" : "Start Walk Test",
-                        systemImage: recorder.isRecording ? "stop.circle.fill" : "record.circle"
-                    )
-                    .font(.headline)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(recorder.isRecording ? .red : .green)
-                .padding(.horizontal)
-                .disabled(!recorder.isRecording && locationManager.location == nil)
-
-                if let err = recorder.lastError {
-                    Text(err).font(.caption).foregroundStyle(.red)
-                }
-
-                List {
-                    ForEach(recorder.samples.reversed()) { s in
-                        VStack(alignment: .leading, spacing: 2) {
-                            HStack {
-                                Text(s.timestamp, style: .time).font(.caption.bold())
-                                Spacer()
-                                if let pred = s.predictedDbm {
-                                    Text("pred \(Int(pred)) dBm").font(.caption)
-                                }
-                                if let proxy = s.actualProxySignal {
-                                    Text("proxy \(Int(proxy))").font(.caption).foregroundStyle(.secondary)
-                                }
-                            }
-                            Text(String(format: "%.5f, %.5f · %d obstruction(s)", s.lat, s.lon, s.obstructionCount ?? 0))
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
+            ZStack {
+                GlassBackground()
+                
+                VStack(spacing: 16) {
+                    HStack(spacing: 16) {
+                        GlassCard(glowColor: .indigo) {
+                            stat("Samples", "\(recorder.samples.count)")
+                        }
+                        GlassCard(glowColor: .blue) {
+                            stat("Proxy", proxyMonitor.proxyScore.map { String(format: "%.0f", $0) } ?? "—")
+                        }
+                        GlassCard(glowColor: .purple) {
+                            stat("Est. dBm", proxyMonitor.estimatedDbm.map { "\(Int($0))" } ?? "—")
                         }
                     }
-                }
-                .listStyle(.plain)
-                .overlay {
-                    if recorder.samples.isEmpty {
-                        ContentUnavailableView(
-                            "No samples yet",
-                            systemImage: "figure.walk",
-                            description: Text("Start a walk test to log predicted vs. actual signal along your route.")
+                    .padding(.horizontal)
+                    .padding(.top)
+
+                    Button(action: toggle) {
+                        Label(
+                            recorder.isRecording ? "Stop Walk Test" : "Start Walk Test",
+                            systemImage: recorder.isRecording ? "stop.circle.fill" : "record.circle"
                         )
+                        .font(.headline)
+                    }
+                    .buttonStyle(GlassButtonStyle(color: recorder.isRecording ? .red : .green))
+                    .padding(.horizontal)
+                    .disabled(!recorder.isRecording && locationManager.location == nil)
+
+                    if let err = recorder.lastError {
+                        Text(err)
+                            .font(.caption.bold())
+                            .foregroundStyle(.red)
+                            .padding(.horizontal)
+                    }
+
+                    if recorder.samples.isEmpty {
+                        Spacer()
+                        VStack(spacing: 12) {
+                            Image(systemName: "figure.walk.circle")
+                                .font(.system(size: 60))
+                                .foregroundStyle(.secondary)
+                            Text("No samples yet")
+                                .font(.headline)
+                            Text("Start a walk test to log predicted vs. actual signal along your route.")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal, 40)
+                        }
+                        Spacer()
+                    } else {
+                        ScrollView {
+                            LazyVStack(spacing: 12) {
+                                ForEach(recorder.samples.reversed()) { s in
+                                    VStack(alignment: .leading, spacing: 6) {
+                                        HStack {
+                                            Image(systemName: "checkmark.circle.fill")
+                                                .font(.caption)
+                                                .foregroundStyle(.green)
+                                            Text(s.timestamp, style: .time)
+                                                .font(.caption.bold())
+                                                .foregroundStyle(.white)
+                                            Spacer()
+                                            if let pred = s.predictedDbm {
+                                                Text("Pred: \(Int(pred)) dBm")
+                                                    .font(.caption.bold())
+                                                    .foregroundStyle(.cyan)
+                                            }
+                                            if let proxy = s.actualProxySignal {
+                                                Text("Proxy: \(Int(proxy))")
+                                                    .font(.caption.bold())
+                                                    .foregroundStyle(.secondary)
+                                            }
+                                        }
+                                        Text(String(format: "%.5f, %.5f · %d obstruction(s)", s.lat, s.lon, s.obstructionCount ?? 0))
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    .padding()
+                                    .liquidGlass(cornerRadius: 12, glowColor: .blue.opacity(0.5))
+                                }
+                            }
+                            .padding(.horizontal)
+                            .padding(.bottom, 20)
+                        }
                     }
                 }
             }
             .navigationTitle("Walk Test")
+            .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
+            .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 if !recorder.samples.isEmpty && !recorder.isRecording {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button("Clear") { recorder.clear() }
+                            .font(.subheadline.bold())
                     }
                 }
             }
