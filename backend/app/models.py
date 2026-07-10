@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime, timezone
 
 from geoalchemy2 import Geometry
-from sqlalchemy import Float, Index, Integer, String, DateTime, Uuid
+from sqlalchemy import BigInteger, Float, Index, Integer, String, DateTime, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -21,8 +21,8 @@ class Tower(Base):
     radio: Mapped[str] = mapped_column(String)                 # LTE / NR / UMTS / GSM
     mcc: Mapped[int] = mapped_column(Integer)
     mnc: Mapped[int] = mapped_column(Integer)
-    lac: Mapped[int] = mapped_column(Integer)
-    cell_id: Mapped[int] = mapped_column(Integer)
+    lac: Mapped[int] = mapped_column(BigInteger)
+    cell_id: Mapped[int] = mapped_column(BigInteger)
     lat: Mapped[float] = mapped_column(Float)
     lon: Mapped[float] = mapped_column(Float)
     range_m: Mapped[float] = mapped_column(Float, default=0.0)
