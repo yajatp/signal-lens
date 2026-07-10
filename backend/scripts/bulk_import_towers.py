@@ -134,13 +134,13 @@ def upsert_cells(cells: list[dict]) -> int:
                     "range_m": range_m,
                     "samples": samples,
                     "updated_at": datetime.now(timezone.utc),
-                    "geom": func.ST_SetSRID(func.ST_MakePoint(lon, lat), 4326),
+                    "geom": f"SRID=4326;POINT({lon} {lat})",
                 })
             
             if not values:
                 continue
                 
-            stmt = pg_insert(Tower).values(values)
+            stmt = pg_insert(Tower)
             stmt = stmt.on_conflict_do_update(
                 index_elements=[Tower.id],
                 set_={
@@ -153,7 +153,7 @@ def upsert_cells(cells: list[dict]) -> int:
                     "geom": stmt.excluded.geom,
                 },
             )
-            db.execute(stmt)
+            db.execute(stmt, values)
             db.commit()
             count += len(values)
             log.info("  upserted %d cells...", count)
