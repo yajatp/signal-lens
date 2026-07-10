@@ -44,8 +44,10 @@ class Prediction:
 
 def nearest_towers(db: Session, lat: float, lon: float, limit: int = 5) -> list[Tower]:
     point = func.ST_SetSRID(func.ST_MakePoint(lon, lat), 4326)
+    # Hard limit of 50 km (50,000 meters) so we don't pull distant cities if local data is missing.
     stmt = (
         select(Tower)
+        .where(func.ST_DWithin(func.Geography(Tower.geom), func.Geography(point), 50000))
         .order_by(Tower.geom.op("<->")(point))
         .limit(limit)
     )

@@ -80,8 +80,8 @@ def download_mcc_csv(mcc: int) -> Path:
     return cache_path
 
 
-def parse_csv(path: Path, bbox: dict) -> list[dict]:
-    """Parse the gzipped CSV, filtering to a bounding box."""
+def parse_csv(path: Path) -> list[dict]:
+    """Parse the gzipped CSV."""
     cells = []
     # OpenCelliD bulk CSVs don't have a header row. The format is:
     # radio, mcc, net, area, cell, unit, lon, lat, range, samples, changeable, created, updated, averageSignal
@@ -93,12 +93,9 @@ def parse_csv(path: Path, bbox: dict) -> list[dict]:
         reader = csv.DictReader(f, fieldnames=fieldnames)
         for row in reader:
             try:
-                lat = float(row["lat"])
-                lon = float(row["lon"])
+                _ = float(row["lat"])
+                _ = float(row["lon"])
             except (KeyError, ValueError):
-                continue
-            if not (bbox["lat_min"] <= lat <= bbox["lat_max"]
-                    and bbox["lon_min"] <= lon <= bbox["lon_max"]):
                 continue
             cells.append(row)
     return cells
@@ -109,66 +106,71 @@ def upsert_cells(cells: list[dict]) -> int:
     db = SessionLocal()
     count = 0
     try:
-        for c in cells:
-            try:
-                radio = c.get("radio", "unknown")
-                mcc = int(c["mcc"])
-                mnc = int(c.get("net") or c.get("mnc", 0))
-                lac = int(c.get("area") or c.get("lac", 0))
-                cell_id = int(c.get("cell") or c.get("cellid", 0))
-                lat = float(c["lat"])
-                lon = float(c["lon"])
-                range_m = float(c.get("range") or 0)
-                samples = int(c.get("samples") or 0)
-            except (KeyError, ValueError, TypeError):
-                continue
+        def chunker(seq, size):
+            return (seq[pos:pos + size] for pos in range(0, len(seq), size))
+            
+        for chunk in chunker(cells, 2000):
+            values = []
+            for c in chunk:
+                try:
+                    radio = c.get("radio", "unknown")
+                    mcc = int(c["mcc"])
+                    mnc = int(c.get("net") or c.get("mnc", 0))
+                    lac = int(c.get("area") or c.get("lac", 0))
+                    cell_id = int(c.get("cell") or c.get("cellid", 0))
+                    lat = float(c["lat"])
+                    lon = float(c["lon"])
+                    range_m = float(c.get("range") or 0)
+                    samples = int(c.get("samples") or 0)
+                except (KeyError, ValueError, TypeError):
+                    continue
 
-            tower_id = f"{mcc}-{mnc}-{lac}-{cell_id}"
-            stmt = pg_insert(Tower).values(
-                id=tower_id,
-                radio=radio,
-                mcc=mcc, mnc=mnc, lac=lac, cell_id=cell_id,
-                lat=lat, lon=lon,
-                range_m=range_m,
-                samples=samples,
-                updated_at=datetime.now(timezone.utc),
-                geom=func.ST_SetSRID(func.ST_MakePoint(lon, lat), 4326),
-            ).on_conflict_do_update(
-                index_elements=[Tower.id],
-                set_={
+                tower_id = f"{mcc}-{mnc}-{lac}-{cell_id}"
+                values.append({
+                    "id": tower_id,
                     "radio": radio,
+                    "mcc": mcc, "mnc": mnc, "lac": lac, "cell_id": cell_id,
                     "lat": lat, "lon": lon,
                     "range_m": range_m,
                     "samples": samples,
                     "updated_at": datetime.now(timezone.utc),
                     "geom": func.ST_SetSRID(func.ST_MakePoint(lon, lat), 4326),
+                })
+            
+            if not values:
+                continue
+                
+            stmt = pg_insert(Tower).values(values)
+            stmt = stmt.on_conflict_do_update(
+                index_elements=[Tower.id],
+                set_={
+                    "radio": stmt.excluded.radio,
+                    "lat": stmt.excluded.lat,
+                    "lon": stmt.excluded.lon,
+                    "range_m": stmt.excluded.range_m,
+                    "samples": stmt.excluded.samples,
+                    "updated_at": stmt.excluded.updated_at,
+                    "geom": stmt.excluded.geom,
                 },
             )
             db.execute(stmt)
-            count += 1
+            db.commit()
+            count += len(values)
+            log.info("  upserted %d cells...", count)
 
-            if count % 500 == 0:
-                db.commit()
-                log.info("  upserted %d cells...", count)
-
-        db.commit()
     finally:
         db.close()
     return count
 
 
 def main():
-    bbox = DEFAULT_BBOX
-    log.info(
-        "Bulk tower import — bbox: lat [%.2f, %.2f] lon [%.2f, %.2f]",
-        bbox["lat_min"], bbox["lat_max"], bbox["lon_min"], bbox["lon_max"],
-    )
+    log.info("Bulk tower import — importing entire MCC datasets")
 
     total = 0
     for mcc in US_MCCS:
         path = download_mcc_csv(mcc)
-        cells = parse_csv(path, bbox)
-        log.info("MCC %d: %d cells in bbox", mcc, len(cells))
+        cells = parse_csv(path)
+        log.info("MCC %d: %d cells found", mcc, len(cells))
         if cells:
             n = upsert_cells(cells)
             total += n
