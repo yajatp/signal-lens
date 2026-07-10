@@ -16,7 +16,7 @@ targets:
           Signal Lens uses your location to predict signal strength where you are,
           log walk-test routes, and anchor Field Test calibration entries.
         NSAppTransportSecurity:
-          NSAllowsLocalNetworking: true
+          NSAllowsArbitraryLoads: true
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
     settings:
       base:
