@@ -1,8 +1,18 @@
 # Signal Lens
 
-**Obstruction-aware cellular signal prediction for iOS.** Signal Lens doesn't just show you where towers are — it predicts what your signal *should* be at any point using physics (path loss + 3D building line-of-sight ray tracing + terrain shadowing), explains *why* a spot is a dead zone ("blocked by 2 buildings, 0.9 mi from tower"), and logs real-world measurements so a residual ML model can learn the gap between physics and reality.
+**An iPhone app that estimates cellular signal strength and explains what is in the way.**
 
-Full design rationale: [docs/signal-lens-project-spec.md](docs/signal-lens-project-spec.md)
+Tap a point on the map to estimate signal strength from tower distance, buildings, and terrain. The prediction shows the estimated loss for each component, so you can distinguish a long path from a nearby building obstruction.
+
+![SwiftUI](https://img.shields.io/badge/iOS-SwiftUI-F05138?logo=swift&logoColor=white) ![FastAPI](https://img.shields.io/badge/API-FastAPI-009688?logo=fastapi&logoColor=white) ![PostGIS](https://img.shields.io/badge/Spatial_data-PostGIS-336791?logo=postgresql&logoColor=white) [![Backend tests](https://github.com/yajatp/signal-lens/actions/workflows/backend-tests.yml/badge.svg)](https://github.com/yajatp/signal-lens/actions/workflows/backend-tests.yml)
+
+## What you can do
+
+| View | What it shows |
+|---|---|
+| Map | Tower locations, a tap-to-predict map, and separate distance, building, and terrain penalties |
+| Walk Test | A time series of model predictions and observations from the phone’s connectivity probe |
+| Calibrate | A place to record an RSRP reading from Field Test Mode when the device makes it available |
 
 ## How it works
 
@@ -14,62 +24,65 @@ predicted_dbm = path_loss_baseline − building_obstruction_penalty − terrain_
 2. **Building LOS ray trace** — the 3D segment from your phone (~1.5 m) to the tower antenna (~30 m) is intersected against real OSM building footprints (PostGIS spatial query); any building whose roof pierces the line adds a flat attenuation penalty.
 3. **Terrain shadowing** — USGS 3DEP elevations are sampled along the path; terrain that rises into the line adds a knife-edge-style penalty.
 
-Every prediction is logged with its physics inputs alongside actual measurements — the training schema for the Phase 2 ML residual/calibration model.
+Walk tests and manual calibration can pair predictions with observations. Those records are the input for a planned residual calibration model.
 
-## Repo layout
+## Try the backend
 
-- `backend/` — Python 3 / FastAPI + PostGIS. Physics engine, data ingestion (OpenCelliD towers, OSM buildings via Overpass, USGS terrain), REST API.
-- `ios/` — SwiftUI app (iOS 17+). Map with towers + tap-to-predict, live proxy-signal readout, Field Test Mode calibration flow, walk-test recorder. Project generated with [XcodeGen](https://github.com/yonaskolb/XcodeGen).
-- `docs/` — the project spec.
-
-## Backend setup
-
-Requires PostgreSQL + PostGIS (`brew install postgis`) and Python 3.12+.
+Requires Python 3.12 and a running PostgreSQL instance with PostGIS installed. The local PostgreSQL user needs permission to create the PostGIS extension.
 
 ```bash
-brew services start postgresql@18        # or your installed version
+git clone https://github.com/yajatp/signal-lens.git
+cd signal-lens/backend
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
 createdb signal_lens
-
-cd backend
-python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
-cp .env.example .env                     # add your OpenCelliD API key
-.venv/bin/python -m scripts.init_db      # PostGIS extension + tables
-.venv/bin/python -m scripts.seed_allen_mckinney   # real towers + buildings for the MVP region
-.venv/bin/uvicorn app.main:app --reload  # http://127.0.0.1:8000/docs
+cp .env.example .env
+python -m scripts.init_db
 ```
 
-Try it:
+Set `OPENCELLID_API_KEY` in `.env` and run the regional import before requesting a prediction. The importer fetches towers and building footprints for Allen and McKinney, Texas.
+
+```bash
+python -m scripts.seed_allen_mckinney
+python -m uvicorn app.main:app --reload
+```
+
+Open the [local API explorer](http://127.0.0.1:8000/docs) or query a point inside the seeded region.
 
 ```bash
 curl 'http://127.0.0.1:8000/predict?lat=33.1032&lon=-96.6706'
 ```
 
-Tests (no database needed — physics is pure):
+The physics unit tests run with no database or data-provider keys.
 
 ```bash
-.venv/bin/python -m pytest tests/
+python -m pytest tests/
 ```
 
-## iOS setup
+## Run the iPhone app
+
+On macOS, install Xcode and [XcodeGen](https://github.com/yonaskolb/XcodeGen). From the repository root, generate the project and open it.
 
 ```bash
-brew install xcodegen
-cd ios && xcodegen generate
+cd ios
+xcodegen generate
 open SignalLens.xcodeproj
 ```
 
-Run on the simulator (backend at `127.0.0.1:8000` works out of the box) or a physical iPhone (set your Mac's LAN IP in the app's Settings tab and run uvicorn with `--host 0.0.0.0`).
+Start the backend first and use an iPhone simulator for the map and prediction workflow. To use a physical iPhone, run the backend with `--host 0.0.0.0` on your local development network and set the Mac’s LAN URL in the app’s Settings. Use a physical device with cellular service for the connectivity probe and manual Field Test calibration.
 
-**Tabs:** Map (tap anywhere for a prediction with the obstruction breakdown) · Walk Test (logs predicted vs. proxy-actual every 10 s) · Calibrate (enter real RSRP from Field Test Mode, `*3001#12345#*`) · Settings.
+## Data and limitations
 
-## Honest limitations (by design, see spec §9)
+- Tower records come from [OpenCelliD](https://opencellid.org/), building footprints and height tags from [OpenStreetMap](https://www.openstreetmap.org/copyright), and elevations from [USGS 3DEP](https://www.usgs.gov/3d-elevation-program).
+- Predictions are model estimates. The cellular probe derives a proxy from latency and throughput. Manual Field Test readings can supply calibration data where available.
+- Building heights fall back to floor counts or defaults when tags are missing. The model applies a simplified attenuation penalty rather than simulating every reflection or material.
+- The default seed covers Allen and McKinney. Coverage elsewhere depends on the tower and building data loaded.
 
-- **iOS exposes no raw dBm.** The live readout is a latency/throughput proxy corrected by your Field Test calibrations — a real but imperfect substitute.
-- **Building attenuation is a flat per-building constant** (~13.5 dB, saturating at a 40 dB total cap — real NLOS loss diffracts over rooftops rather than stacking indefinitely); material data doesn't exist publicly. This is exactly what the ML residual layer is built to absorb.
-- **OSM height tags are sparse** — heights fall back to `building:levels` × 3 m, then per-type defaults, and each building records which source was used.
-- **No public "live signal at any point" API exists** (Mozilla Location Service is dead; OpenCelliD is historical tower positions). Ground truth comes from physically walking the MVP region (Allen/McKinney, TX).
+## Repository guide
 
-## Roadmap
-
-- **Phase 2:** ML residual model (gradient-boosted regressor on the logged schema), 3D obstruction visualization (RealityKit), route heatmaps.
-- **Phase 3+:** multi-carrier comparison, mmWave/6G propagation profiles, crowdsourced measurements, Android.
+| Path | Contents |
+|---|---|
+| [backend/](backend/) | FastAPI, PostGIS, ingestion scripts, and physics tests |
+| [ios/](ios/) | SwiftUI client, network probe, and walk-test recorder |
+| [Project spec](docs/signal-lens-project-spec.md) | Model assumptions, implementation notes, and roadmap |
