@@ -6,6 +6,12 @@ Tap a point on the map to estimate signal strength from tower distance, building
 
 ![SwiftUI](https://img.shields.io/badge/iOS-SwiftUI-F05138?logo=swift&logoColor=white) ![FastAPI](https://img.shields.io/badge/API-FastAPI-009688?logo=fastapi&logoColor=white) ![PostGIS](https://img.shields.io/badge/Spatial_data-PostGIS-336791?logo=postgresql&logoColor=white) [![Backend tests](https://github.com/yajatp/signal-lens/actions/workflows/backend-tests.yml/badge.svg)](https://github.com/yajatp/signal-lens/actions/workflows/backend-tests.yml)
 
+<p align="center">
+  <img src="docs/prediction-simulator.png" width="300" alt="Signal Lens simulator showing a prediction at a map point and a breakdown of the path loss, building penalty, and terrain penalty">
+</p>
+
+*The simulator uses a synthetic tower and obstruction for this preview. The prediction is a model estimate. The Offline indicator refers to the separate cellular probe.*
+
 ## What you can do
 
 | View | What it shows |
